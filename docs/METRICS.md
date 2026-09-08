@@ -136,6 +136,7 @@ This number is dominated by your health check settings: `--retries 10 --interval
 | Failover | `scripts/db/promote_replica.sh --confirm` | **2 s** | replica promoted, accepted writes (tested locally) |
 | Replication repair after restore | `setup_replication.sh --force` | **1 s** | both servers reconciled, verified by a live write |
 | Replication lag, steady state | `scripts/db/replication_status.sh` | **0 s behind** | measured on EC2 |
+| Infrastructure teardown | `infra/teardown.py` | ~40 s | instance terminated; S3, IAM and key pair preserved by design |
 
 ---
 

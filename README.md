@@ -235,7 +235,13 @@ Run and passing:
 - `scripts/db/backup_db.sh` — dump taken from the replica, integrity-verified, GTID position recorded
 - `scripts/db/promote_replica.sh` — failover completed in **2 s**; replica became writable and accepted writes
 
-Not yet exercised, because they need real AWS: `infra/provision.py`, `infra/teardown.py`, the S3 deployment ledger, and the nginx blue-green switch. Follow [docs/AWS-SETUP.md](docs/AWS-SETUP.md).
+Verified end to end on real AWS:
+
+- `infra/provision.py` — S3, IAM role, security group, key pair and EC2 built on the first run
+- `infra/teardown.py` — instance terminated; S3, IAM and the key pair deliberately preserved
+- Jenkins — 5 builds, triggered by `git push`, one deliberate rollback drill (UNSTABLE)
+- Blue-green switch through nginx, with the S3 ledger recording 12 deploys (10 success, 2 failed)
+- MySQL replication, verified S3 backup, tested restore, and a repaired replica proven by a live write
 
 ## Cost
 
