@@ -133,4 +133,4 @@ Once the table is filled in, the bullets write themselves. Replace the bracketed
 | "Why not `:latest`?" | README design decisions |
 | "How would you do this with 20 instances?" | ALB + target groups; the switch logic becomes a target-group swap |
 | "Have you ever restored a backup?" | RUNBOOK "Practise it properly" — with the row count you verified |
-| "What breaks first under load?" | Honest answer: RAM on a 2 GB box with two MySQL servers. Say so. |
+| "What breaks first under load?" | Honest answer: RAM. It is a 1 GiB t3.micro running two MySQL servers on swap. Say so. |

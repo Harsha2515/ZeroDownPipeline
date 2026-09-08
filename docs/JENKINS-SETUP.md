@@ -1,6 +1,6 @@
 # Jenkins setup
 
-Jenkins runs **on your laptop, in Docker** — not on the EC2 instance. A t3.micro already hosts two MySQL servers, Redis, nginx and two app containers; adding a JVM to that will get something OOM-killed mid-deploy. Jenkins is the thing that *talks to* the instance, so it does not need to live there.
+Jenkins runs **on your laptop, in Docker** — not on the EC2 instance. The t3.micro has 1 GiB of RAM and already hosts two MySQL servers, Redis, nginx and two app containers; adding a JVM to that would get something OOM-killed mid-deploy. Jenkins is the thing that *talks to* the instance, so it does not need to live there.
 
 ---
 

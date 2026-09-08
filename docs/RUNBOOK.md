@@ -31,7 +31,7 @@ curl -sI http://<ip>/health | grep X-Served-By
 # on the instance
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 /opt/zerodown/scripts/db/replication_status.sh
-free -h                      # watch swap usage on a 2 GB box
+free -h                      # watch swap usage - only 1 GiB of real RAM
 df -h /                      # docker images accumulate
 
 # recent deploys, from S3
@@ -202,7 +202,7 @@ docker logs zdp-app-green --tail 50   # the app logs which dependency it cannot 
 
 **Out of memory / the box is thrashing.**
 ```bash
-free -h                               # swap in use is fine; swap full is not
+free -h                               # swap in use is fine; swap full is not (1 GiB box)
 docker stats --no-stream
 docker image prune -af                # old images are usually the culprit
 ```

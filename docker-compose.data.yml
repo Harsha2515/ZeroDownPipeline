@@ -5,8 +5,10 @@
 # once by scripts/db/bootstrap_db.sh and then left alone, so that application
 # deploys and rollbacks are genuinely independent of the data layer.
 #
-# Every setting here is tuned for a 2 GB t3.micro. The buffer pools are small
-# on purpose; two MySQL servers, Redis and two app containers have to coexist.
+# Every setting here is tuned for a 1 GiB t3.micro - the biggest box the AWS
+# free tier offers. The buffer pools are deliberately tiny: two MySQL
+# servers, Redis, nginx and two app containers have to coexist in under a
+# gigabyte, backed by swap.
 # ---------------------------------------------------------------------------
 name: zdp-data
 
@@ -43,9 +45,11 @@ services:
       - --gtid-mode=ON
       - --enforce-gtid-consistency=ON
       - --binlog-expire-logs-seconds=86400
-      - --innodb-buffer-pool-size=96M
+      - --innodb-buffer-pool-size=48M
       - --performance-schema=OFF
-      - --max-connections=60
+      - --max-connections=40
+      - --table-open-cache=64
+      - --innodb-log-buffer-size=4M
     volumes:
       - mysql-primary-data:/var/lib/mysql
     healthcheck:
@@ -78,9 +82,11 @@ services:
       # read_only on with SET PERSIST once replication is established, which
       # survives restarts and leaves the initialisation path alone.
       - --skip-replica-start
-      - --innodb-buffer-pool-size=96M
+      - --innodb-buffer-pool-size=48M
       - --performance-schema=OFF
-      - --max-connections=40
+      - --max-connections=30
+      - --table-open-cache=64
+      - --innodb-log-buffer-size=4M
     volumes:
       - mysql-replica-data:/var/lib/mysql
     depends_on:
@@ -103,7 +109,7 @@ services:
     command:
       - redis-server
       - --maxmemory
-      - 64mb
+      - 48mb
       - --maxmemory-policy
       - allkeys-lru
       - --appendonly

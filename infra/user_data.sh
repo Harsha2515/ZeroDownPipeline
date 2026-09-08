@@ -14,14 +14,19 @@ set -xeuo pipefail
 echo "=== zerodown bootstrap started at $(date -u) ==="
 
 dnf update -y
-dnf install -y docker nginx git jq unzip tar gzip
+# cronie is NOT installed on Amazon Linux 2023 by default. Without it there is
+# no /etc/cron.d, and writing the backup schedule fails - which under `set -e`
+# aborts the whole bootstrap before the completion marker is written.
+dnf install -y docker nginx git jq unzip tar gzip cronie
 
 # --- swap -------------------------------------------------------------------
-# t3.micro has 2 GB. Two MySQL servers, Redis, two app containers and nginx
-# will fit, but only just. 2 GB of swap turns a would-be OOM kill during a
-# deploy into a brief slowdown.
+# t3.micro is 1 GiB - the largest instance the free tier offers. Two MySQL
+# servers, Redis, nginx and (briefly, during a blue-green switch) two app
+# containers do not fit in that alone. 3 GB of swap turns what would be an
+# OOM kill mid-deploy into a slowdown. The buffer pools in
+# docker-compose.data.yml are sized to match.
 if [ ! -f /swapfile ]; then
-  dd if=/dev/zero of=/swapfile bs=1M count=2048
+  dd if=/dev/zero of=/swapfile bs=1M count=3072
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
@@ -68,6 +73,8 @@ chown -R ec2-user:ec2-user /opt/zerodown
 docker network inspect zdp-net >/dev/null 2>&1 || docker network create zdp-net
 
 # --- nightly backup cron ----------------------------------------------------
+systemctl enable --now crond
+mkdir -p /etc/cron.d
 cat > /etc/cron.d/zerodown-backup <<'CRON'
 # Nightly MySQL backup to S3, 02:00 UTC.
 0 2 * * * ec2-user /opt/zerodown/scripts/db/backup_db.sh >> /var/log/zerodown-backup.log 2>&1

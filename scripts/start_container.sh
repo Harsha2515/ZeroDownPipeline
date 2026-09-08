@@ -56,7 +56,7 @@ docker run -d \
   -e "S3_BUCKET=${S3_BUCKET:-}" \
   -e "AWS_REGION=${AWS_REGION:-ap-south-1}" \
   -e "BREAK_HEALTHCHECK=${BREAK}" \
-  --memory 320m \
+  --memory 192m \
   --log-opt max-size=10m --log-opt max-file=3 \
   "$IMAGE" >/dev/null
 

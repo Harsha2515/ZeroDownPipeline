@@ -77,7 +77,7 @@ app/                     Flask URL shortener — small on purpose
   tests/                 16 unit tests, no live dependencies needed
 
 Dockerfile               multi-stage, non-root, HEALTHCHECK, SHA-tagged
-docker-compose.data.yml  MySQL primary + replica + Redis, tuned for 2 GB RAM
+docker-compose.data.yml  MySQL primary + replica + Redis, tuned for a 1 GiB box
 Jenkinsfile              8 stages, with rollback wired into the failure paths
 
 infra/                   AWS, entirely in boto3 — no console clicks
@@ -121,7 +121,7 @@ docs/
 Full detail is in [docs/AWS-SETUP.md](docs/AWS-SETUP.md). The short version:
 
 ```bash
-# 0. prerequisites: Docker, Python 3.11+, AWS CLI, an AWS account, a Docker Hub account
+# 0. prerequisites: Docker, Python 3.10+, AWS CLI, an AWS account, a Docker Hub account
 cp .env.example .env          # then edit it — S3_BUCKET must be globally unique
 pip install boto3
 
@@ -148,7 +148,8 @@ python deploy/healthcheck.py
 **Windows note:** SSH refuses a private key that other accounts can read. After `provision.py` writes the `.pem`:
 
 ```powershell
-icacls .\zerodownpipeline-key.pem /inheritance:r /grant:r "$env:USERNAME:R"
+$me = "$env:USERDOMAIN\$env:USERNAME"
+icacls .\zerodownpipeline-key.pem /inheritance:r /grant:r "${me}:R"
 ```
 
 ---

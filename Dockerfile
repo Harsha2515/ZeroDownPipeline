@@ -44,4 +44,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
     CMD curl -fsS "http://localhost:${APP_PORT}/health" || exit 1
 
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${APP_PORT} --workers 2 --threads 4 --timeout 30 --access-logfile - --error-logfile - 'app.main:create_app()'"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${APP_PORT} --workers 1 --threads 8 --timeout 30 --access-logfile - --error-logfile - 'app.main:create_app()'"]

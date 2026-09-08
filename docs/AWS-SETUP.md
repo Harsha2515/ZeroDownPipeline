@@ -54,7 +54,7 @@ Never commit these. Never paste them into a chat, a screenshot, or a public repo
 | Tool | Install | Check |
 |---|---|---|
 | AWS CLI v2 | <https://aws.amazon.com/cli/> | `aws --version` |
-| Python 3.11+ | <https://python.org> | `python --version` |
+| Python 3.10+ | <https://python.org> | `python --version` |
 | Docker Desktop | <https://docker.com/products/docker-desktop> | `docker --version` |
 | Git | <https://git-scm.com> | `git --version` |
 
@@ -167,7 +167,8 @@ It also writes `infra/outputs.json`. Every other script reads that file, so you 
 **Windows** — SSH will refuse the key until you do this:
 
 ```powershell
-icacls .\zerodownpipeline-key.pem /inheritance:r /grant:r "$env:USERNAME:R"
+$me = "$env:USERDOMAIN\$env:USERNAME"
+icacls .\zerodownpipeline-key.pem /inheritance:r /grant:r "${me}:R"
 ```
 
 ### 2.2 Wait for first boot to finish
