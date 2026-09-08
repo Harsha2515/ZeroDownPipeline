@@ -1,0 +1,6 @@
+flask==3.0.3
+werkzeug==3.0.3
+gunicorn==22.0.0
+PyMySQL[rsa]==1.1.1   # [rsa] pulls in cryptography, required for MySQL 8 caching_sha2_password
+redis==5.0.7
+boto3==1.34.144

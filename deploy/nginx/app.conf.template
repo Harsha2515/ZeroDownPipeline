@@ -1,0 +1,39 @@
+# Rendered by scripts/switch_traffic.sh - {{ACTIVE_PORT}} and {{ACTIVE_COLOR}}
+# are substituted at switch time. Do not edit the rendered copy in
+# /etc/nginx/conf.d/ by hand; it is overwritten on every deploy.
+#
+# Active colour: {{ACTIVE_COLOR}}
+
+upstream zerodown_app {
+    server 127.0.0.1:{{ACTIVE_PORT}} max_fails=3 fail_timeout=10s;
+    keepalive 16;
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    access_log /var/log/nginx/zerodown.access.log;
+    error_log  /var/log/nginx/zerodown.error.log warn;
+
+    # Which colour served this response - the simplest possible proof that a
+    # blue-green switch actually happened. curl -I the box before and after.
+    add_header X-Served-By "{{ACTIVE_COLOR}}" always;
+
+    location / {
+        proxy_pass http://zerodown_app;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 3s;
+        proxy_read_timeout    30s;
+
+        # If the active container dies between health checks, retry the request
+        # rather than handing the user a 502.
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+    }
+}

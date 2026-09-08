@@ -1,0 +1,117 @@
+# ---------------------------------------------------------------------------
+# The stateful tier: MySQL primary + replica, and Redis.
+#
+# This stack is long-lived. The pipeline never touches it - it is brought up
+# once by scripts/db/bootstrap_db.sh and then left alone, so that application
+# deploys and rollbacks are genuinely independent of the data layer.
+#
+# Every setting here is tuned for a 2 GB t3.micro. The buffer pools are small
+# on purpose; two MySQL servers, Redis and two app containers have to coexist.
+# ---------------------------------------------------------------------------
+name: zdp-data
+
+networks:
+  zdp-net:
+    name: zdp-net
+    external: true
+
+volumes:
+  mysql-primary-data:
+  mysql-replica-data:
+  redis-data:
+
+services:
+  mysql-primary:
+    image: mysql:8.0
+    container_name: mysql-primary
+    restart: unless-stopped
+    networks: [zdp-net]
+    ports:
+      # Loopback only - never exposed to the internet. The host-side port is
+      # configurable because a machine may already run MySQL on 3306; the
+      # containers always reach each other on 3306 over zdp-net regardless.
+      - "127.0.0.1:${MYSQL_PRIMARY_HOST_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --binlog-expire-logs-seconds=86400
+      - --innodb-buffer-pool-size=96M
+      - --performance-schema=OFF
+      - --max-connections=60
+    volumes:
+      - mysql-primary-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  mysql-replica:
+    image: mysql:8.0
+    container_name: mysql-replica
+    restart: unless-stopped
+    networks: [zdp-net]
+    ports:
+      - "127.0.0.1:${MYSQL_REPLICA_HOST_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command:
+      - --server-id=2
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --relay-log=relay-bin
+      # read_only is deliberately NOT set here. MySQL's own entrypoint has to
+      # write to the mysql schema on first boot to create the root user, and a
+      # server started with --super-read-only refuses that - the container then
+      # comes up with no usable credentials. setup_replication.sh turns
+      # read_only on with SET PERSIST once replication is established, which
+      # survives restarts and leaves the initialisation path alone.
+      - --skip-replica-start
+      - --innodb-buffer-pool-size=96M
+      - --performance-schema=OFF
+      - --max-connections=40
+    volumes:
+      - mysql-replica-data:/var/lib/mysql
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    networks: [zdp-net]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --appendonly
+      - "no"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

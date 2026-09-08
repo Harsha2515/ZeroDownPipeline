@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 100
+exclude = .git,__pycache__,.venv,venv
+# E203 disagrees with black-style slicing; W503 is the old line-break rule.
+extend-ignore = E203,W503

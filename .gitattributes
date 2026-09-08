@@ -1,0 +1,15 @@
+# Anything that runs on the Linux instance must keep LF endings. A shell script
+# checked out with CRLF fails on Linux with a misleading error:
+#   /usr/bin/env: 'bash\r': No such file or directory
+* text=auto eol=lf
+
+*.sh            text eol=lf
+Jenkinsfile     text eol=lf
+Dockerfile      text eol=lf
+*.yml           text eol=lf
+*.template      text eol=lf
+.env.example    text eol=lf
+
+*.pem           binary
+*.png           binary
+*.jpg           binary
