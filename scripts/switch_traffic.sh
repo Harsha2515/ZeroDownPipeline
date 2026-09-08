@@ -23,9 +23,12 @@ require_cmd nginx
 PREVIOUS_COLOR="$(active_color)"
 log "switching traffic: ${PREVIOUS_COLOR} -> ${TARGET_COLOR} (port ${TARGET_PORT})"
 
+# The previous config is kept OUTSIDE /etc/nginx/conf.d. A backup sitting in a
+# directory nginx globs is an accident waiting for someone to rename it.
 BACKUP=""
 if [[ -f "$NGINX_CONF" ]]; then
-  BACKUP="${NGINX_CONF}.prev"
+  sudo mkdir -p "$ZDP_STATE_DIR"
+  BACKUP="${ZDP_STATE_DIR}/nginx-zerodown.conf.prev"
   sudo cp "$NGINX_CONF" "$BACKUP"
 fi
 

@@ -4,6 +4,8 @@ Day-2 operations. Run each of these at least once before you put this project on
 
 Throughout: `SSH` means `ssh -i zerodownpipeline-key.pem ec2-user@<public_ip>`, and everything on the instance lives in `/opt/zerodown`.
 
+On Windows PowerShell, write `curl.exe` rather than `curl` — the bare name is an alias for `Invoke-WebRequest` and behaves differently.
+
 ---
 
 ## Where things are

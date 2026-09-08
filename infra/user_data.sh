@@ -55,10 +55,31 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 # --- nginx ------------------------------------------------------------------
-# The default server block would answer on port 80 and shadow ours, so it goes.
+# Amazon Linux ships a server block INSIDE /etc/nginx/nginx.conf that listens on
+# 80 with server_name "_" - exactly what our own block claims. nginx resolves
+# the clash by include order, so the app would be reachable only because
+# `include conf.d/*.conf` happens to sit a few lines above it. Comment the stock
+# block out so ours is the only server on port 80 by design, not by luck.
 rm -f /etc/nginx/conf.d/default.conf
-if [ -f /etc/nginx/nginx.conf ]; then
-  sed -i '/^\s*server\s*{/,/^\s*}/d' /etc/nginx/nginx.conf.default 2>/dev/null || true
+if grep -qE '^[[:space:]]*server[[:space:]]*\{' /etc/nginx/nginx.conf; then
+  cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.zdp-backup
+  awk '
+    BEGIN { done = 0; inblk = 0; depth = 0 }
+    {
+      if (!done && !inblk && $0 ~ /^[[:space:]]*server[[:space:]]*\{/) {
+        inblk = 1; depth = 1; print "#" $0; next
+      }
+      if (inblk) {
+        opens = gsub(/\{/, "{"); closes = gsub(/\}/, "}")
+        depth = depth + opens - closes
+        print "#" $0
+        if (depth <= 0) { inblk = 0; done = 1 }
+        next
+      }
+      print
+    }
+  ' /etc/nginx/nginx.conf.zdp-backup > /etc/nginx/nginx.conf
+  nginx -t || cp /etc/nginx/nginx.conf.zdp-backup /etc/nginx/nginx.conf
 fi
 systemctl enable nginx
 

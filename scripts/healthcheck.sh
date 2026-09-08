@@ -23,10 +23,26 @@ require_cmd curl
 log "health-checking ${URL} for version=${EXPECTED_VERSION} (${RETRIES} attempts, ${INTERVAL}s apart)"
 
 attempt=1
-while (( attempt <= RETRIES )); do
-  body="$(curl -fsS --max-time 5 "$URL" 2>/dev/null || true)"
+BODY_FILE="$(mktemp)"
+trap 'rm -f "$BODY_FILE"' EXIT
 
-  if [[ -n "$body" ]]; then
+while (( attempt <= RETRIES )); do
+  # Capture the status code and the body separately. Using `curl -f` here would
+  # discard the body on any HTTP error, making a container that answered 500
+  # indistinguishable from one that never opened the port - and those two
+  # failures need completely different fixes at 3am.
+  # curl already writes 000 via -w when it cannot connect, so do NOT append a
+  # fallback here - that produced "000000" and misreported a refused connection
+  # as an unhealthy HTTP response.
+  http_code="$(curl -sS --max-time 5 -o "$BODY_FILE" -w '%{http_code}' "$URL" 2>/dev/null || true)"
+  [[ -z "$http_code" ]] && http_code="000"
+  body="$(cat "$BODY_FILE" 2>/dev/null || true)"
+
+  if [[ "$http_code" == "000" ]]; then
+    warn "attempt ${attempt}/${RETRIES}: no response - nothing is listening on port ${PORT} yet"
+  elif [[ "$http_code" != "200" ]]; then
+    warn "attempt ${attempt}/${RETRIES}: the app answered HTTP ${http_code} (it is running but unhealthy): ${body}"
+  else
     status="$(printf '%s' "$body" | grep -oE '"status"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)"
     version="$(printf '%s' "$body" | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)"
 
@@ -38,10 +54,8 @@ while (( attempt <= RETRIES )); do
       fi
       warn "attempt ${attempt}/${RETRIES}: healthy but version mismatch (got '${version}', want '${EXPECTED_VERSION}')"
     else
-      warn "attempt ${attempt}/${RETRIES}: unhealthy response: ${body}"
+      warn "attempt ${attempt}/${RETRIES}: HTTP 200 but status=${status}: ${body}"
     fi
-  else
-    warn "attempt ${attempt}/${RETRIES}: no response from ${URL}"
   fi
 
   (( attempt++ ))

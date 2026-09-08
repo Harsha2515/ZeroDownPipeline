@@ -160,6 +160,8 @@ The script is idempotent: run it again and it verifies rather than duplicates.
 
 It also writes `infra/outputs.json`. Every other script reads that file, so you never copy an IP by hand.
 
+> **PowerShell users:** `curl` is an alias for `Invoke-WebRequest`, which parses HTML and prompts with a script-execution warning. Use **`curl.exe`** everywhere this guide says `curl`, or switch to Git Bash.
+
 ### 2.1 Lock down the key file
 
 **Linux/macOS:** `provision.py` already did it.
