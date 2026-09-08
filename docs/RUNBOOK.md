@@ -98,11 +98,25 @@ SSH
 /opt/zerodown/scripts/db/restore_db.sh --confirm backups/mysql/2026/09/08/zerodown-20260908T020000Z.sql.gz
 ```
 
-After any restore, replication must be rebuilt — the primary's GTID history was reset:
+`restore_db.sh` loads the dump into **both** servers, not just the primary. Restoring only
+the primary leaves the replica holding every transaction that happened after the backup —
+and because those GTIDs are already in its executed set, replication reconnects, reports
+healthy, and never reconciles the gap. The script prints both row counts and warns loudly
+if they disagree.
+
+After any restore, replication must still be re-pointed — the primary's GTID history was
+reset, so `--force` is required to get past the "already running" check:
 
 ```bash
-/opt/zerodown/scripts/db/setup_replication.sh
+/opt/zerodown/scripts/db/setup_replication.sh --force
 /opt/zerodown/scripts/db/replication_status.sh
+```
+
+Then prove it actually *flows*, rather than trusting the thread states:
+
+```bash
+curl -s -X POST http://localhost/shorten -H 'Content-Type: application/json'   -d '{"url":"https://replication-check.example.com"}'
+# the new short_code must appear on BOTH servers
 ```
 
 ### Practise it properly

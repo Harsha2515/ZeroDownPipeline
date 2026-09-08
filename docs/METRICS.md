@@ -131,9 +131,10 @@ This number is dominated by your health check settings: `--retries 10 --interval
 
 | Operation | Command | Time | Notes |
 |---|---|---|---|
-| Backup (full) | `scripts/db/backup_db.sh` | ~1 s | 4 KB gzipped; verified before upload (tested locally) |
-| Restore | `scripts/db/restore_db.sh --confirm` | _not yet run_ | **run this once - see RUNBOOK** |
+| Backup (full) | `scripts/db/backup_db.sh` | ~2 s | 4 KB gzipped, uploaded to S3, verified before upload |
+| Restore | `scripts/db/restore_db.sh --confirm` | **2 s** | verified on EC2: 5 rows -> added 1 -> restored -> 5 rows, test row gone |
 | Failover | `scripts/db/promote_replica.sh --confirm` | **2 s** | replica promoted, accepted writes (tested locally) |
+| Replication repair after restore | `setup_replication.sh --force` | **1 s** | both servers reconciled, verified by a live write |
 | Replication lag, steady state | `scripts/db/replication_status.sh` | **0 s behind** | measured on EC2 |
 
 ---

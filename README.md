@@ -240,3 +240,6 @@ Not yet exercised, because they need real AWS: `infra/provision.py`, `infra/tear
 ## Cost
 
 Free tier, within the first 12 months: one t3.micro (750 h/month), 30 GB gp3 EBS, 5 GB S3, and S3 request volumes this project will not come close to. The lifecycle rules in `provision.py` prune old object versions and backups so the bucket cannot quietly grow. **Run `python infra/teardown.py` when you are done** — the instance is the only part that would ever cost money.
+
+
+![Jenkins pipeline](docs/jenkins-stage-view.png)

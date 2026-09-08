@@ -66,7 +66,38 @@ def main() -> int:
         env_file = ROOT / ".env"
         if not env_file.exists():
             fail(".env not found. Copy .env.example to .env and fill it in first.")
-        scp(cfg, env_file, f"{REMOTE_ROOT}/.env")
+
+        # Some settings are meaningful only on a developer machine and actively
+        # break the instance if shipped:
+        #
+        #   AWS_PROFILE  - names a profile in ~/.aws/config. That file does not
+        #                  exist on the box, and setting this makes the AWS CLI
+        #                  look for the profile INSTEAD of falling back to the
+        #                  instance's IAM role, so every AWS call fails with
+        #                  "The config profile (default) could not be found".
+        #   AWS_ACCESS_* - the instance uses its IAM role; long-lived keys must
+        #                  never be written to a server that does not need them.
+        #   EC2_KEY_PATH - a path on the laptop, meaningless remotely.
+        #
+        # So the remote .env is filtered rather than copied verbatim.
+        strip = ("AWS_PROFILE", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+                 "AWS_SESSION_TOKEN", "EC2_KEY_PATH", "EC2_HOST")
+        kept, removed = [], []
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            key = line.split("=", 1)[0].strip() if "=" in line else ""
+            if key in strip:
+                removed.append(key)
+                kept.append(f"# {key} removed by sync_scripts.py - laptop-only setting")
+            else:
+                kept.append(line)
+        if removed:
+            log(f"not shipping to the instance: {', '.join(removed)}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            remote_env = Path(tmpdir) / "env-for-instance"
+            body = "\n".join(kept) + "\n"
+            remote_env.write_text(body, encoding="utf-8", newline="\n")
+            scp(cfg, remote_env, f"{REMOTE_ROOT}/.env")
         # Contains the MySQL root password - nobody else on the box needs it.
         ssh(cfg, f"chmod 600 {REMOTE_ROOT}/.env")
 

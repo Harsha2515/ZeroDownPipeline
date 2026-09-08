@@ -22,10 +22,19 @@ replica_sql() { docker exec -i mysql-replica mysql -uroot -p"${MYSQL_ROOT_PASSWO
 # replication gets reported as broken.
 replica_status() { docker exec -i mysql-replica mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW REPLICA STATUS\G"; }
 
-if [[ "$(replica_status | grep -c 'Replica_IO_Running: Yes' || true)" -gt 0 ]]; then
-  log "replication already running - nothing to do"
+# --force skips the "already running" short-circuit. Needed after a restore:
+# restore_db.sh runs RESET MASTER on the primary, which invalidates the GTIDs
+# the replica is following, but the IO thread can still report "Yes" for a
+# while afterwards - so the idempotency check would skip the repair that is
+# precisely what is needed.
+FORCE=0
+[[ "${1:-}" == "--force" ]] && FORCE=1
+
+if (( FORCE == 0 )) && [[ "$(replica_status | grep -c 'Replica_IO_Running: Yes' || true)" -gt 0 ]]; then
+  log "replication already running - nothing to do (use --force to reconfigure anyway)"
   exit 0
 fi
+(( FORCE == 1 )) && log "--force given: reconfiguring replication from scratch"
 
 log "creating replication user '${MYSQL_REPL_USER}' on the primary"
 primary_sql "
