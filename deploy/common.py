@@ -35,9 +35,24 @@ def log(msg: str) -> None:
     print(f"[deploy] {msg}", flush=True)
 
 
+# Exit codes are part of this script's contract with Jenkins, because the
+# difference between them is the difference between "your users are fine" and
+# "your users are not":
+#   0  deployed and recorded
+#   1  health check failed - the new version was destroyed, traffic never moved
+#   2  deployed and LIVE, but the S3 ledger write failed (bookkeeping is stale)
+#   3  failed before any traffic change - bad config, unreachable host, etc.
+#
+# Only deploy.py's rollback path may exit 1. Everything else that goes wrong
+# exits 3, so a build log can never claim a rollback that did not happen.
+EXIT_ROLLED_BACK = 1
+EXIT_LEDGER_STALE = 2
+EXIT_PRECONDITION = 3
+
+
 def fail(msg: str) -> None:
     print(f"[deploy] ERROR: {msg}", file=sys.stderr, flush=True)
-    raise SystemExit(1)
+    raise SystemExit(EXIT_PRECONDITION)
 
 
 def now_iso() -> str:

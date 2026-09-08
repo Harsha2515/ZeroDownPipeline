@@ -178,6 +178,13 @@ pipeline {
                             currentBuild.result = 'UNSTABLE'
                             env.DEPLOY_OUTCOME = 'deployed-ledger-stale'
                             echo "DEPLOYED, but the S3 deployment ledger is stale. The new version is serving traffic. Do NOT run rollback.py until the ledger is reconciled - re-run this job to fix it."
+                        } else if (status == 3) {
+                            // Failed before anything was deployed - unreachable
+                            // host, missing config. No container was started and
+                            // no traffic moved, so saying "rolled back" would be
+                            // inventing an event that never happened.
+                            env.DEPLOY_OUTCOME = 'never-deployed'
+                            error("Deploy could not start - the target was unreachable or misconfigured. Nothing was deployed and no traffic was moved. Check that the instance is running and EC2_HOST is correct.")
                         } else if (status != 0) {
                             if (params.ROLLBACK_DRILL) {
                                 // The drill is supposed to fail the health check.

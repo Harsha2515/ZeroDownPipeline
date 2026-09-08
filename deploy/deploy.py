@@ -31,6 +31,8 @@ import sys
 import time
 
 from common import (
+    EXIT_LEDGER_STALE,
+    EXIT_ROLLED_BACK,
     REMOTE_ROOT,
     active_color,
     append_history,
@@ -129,7 +131,10 @@ def main() -> int:
         log(f"time from deploy start to completed rollback: {marks['rolled_back_s']}s")
         if args.break_health:
             log("drill succeeded: the pipeline caught a bad build and recovered on its own.")
-        return 1
+        # The ONLY place that returns this code. It means, specifically: a new
+        # version was started, failed its health check, and was destroyed
+        # without ever receiving traffic.
+        return EXIT_ROLLED_BACK
 
     # --- 4b. promote --------------------------------------------------------
     log(f"[3/4] health check passed in {health_seconds}s - switching traffic to {target}")
@@ -172,7 +177,7 @@ def main() -> int:
         log("fixed, or it will 'restore' a version older than the live one:")
         log(f"  python deploy/deploy.py --tag {args.tag}    # re-run to reconcile")
         log("=" * 68)
-        return 2
+        return EXIT_LEDGER_STALE
 
     append_history(cfg, {
         "image_tag": args.tag,
