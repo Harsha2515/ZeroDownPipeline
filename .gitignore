@@ -22,3 +22,9 @@ Thumbs.db
 # Local test artefacts
 backups/
 .env.local
+
+#Safety Keys
+ZeroDownPipeline.txt
+
+# Timestamped .env backups - these hold the MySQL passwords.
+.env.bak*

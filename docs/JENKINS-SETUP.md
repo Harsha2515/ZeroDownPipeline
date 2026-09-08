@@ -110,18 +110,44 @@ Under **Build Triggers**, tick **Poll SCM** with schedule `H/5 * * * *` — chec
 
 ## 5. Give Jenkins the instance details
 
-`deploy.py` normally reads `infra/outputs.json`, which is gitignored — so the Jenkins workspace does not have it. Set the values as environment variables instead. **Manage Jenkins → System → Global properties → Environment variables:**
+`deploy.py` normally reads `infra/outputs.json`, which is gitignored — so the Jenkins workspace does not have it.
 
-| Name | Value |
-|---|---|
-| `EC2_HOST` | your instance's public IP |
-| `S3_BUCKET` | your bucket name |
-| `AWS_REGION` | `ap-south-1` |
-| `DOCKERHUB_USER` | your Docker Hub username |
+`S3_BUCKET`, `AWS_REGION`, `DOCKERHUB_USER` and `DOCKER_IMAGE` are already set in the
+`environment` block at the top of the `Jenkinsfile`, so there is nothing to add for those.
+That leaves the host, and it does not need setting either — see below.
 
-`load_config()` puts the environment ahead of both `.env` and `outputs.json`, so these win.
+If you ever do need to override one, **Manage Jenkins → System → Global properties →
+Environment variables** is the place: `load_config()` puts the environment ahead of both
+`.env` and `outputs.json`.
 
-**The public IP changes every time you stop and start the instance.** Update `EC2_HOST` after each restart, or attach an Elastic IP (free while it is associated with a running instance).
+### You do not have to set `EC2_HOST`
+
+The public IP changes every time the instance is replaced, and a hand-copied
+address in this settings page is a note that goes stale the moment that
+happens — which shows up later as `Connection timed out` on a build whose code
+was perfectly fine.
+
+So when no host is configured, `discover_host()` asks AWS directly for the
+running instance tagged `Name=zerodownpipeline-app` and uses its current public
+IP. Provision a new instance and the next build finds it, with nothing to
+update here.
+
+The build log says when this happens:
+
+```
+[deploy] discovered 13.201.186.129 from AWS (i-0abc123, tag Name=zerodownpipeline-app)
+```
+
+Two things worth knowing:
+
+- **The AWS credentials Jenkins uses need `ec2:DescribeInstances`.** Without it,
+  discovery is skipped and you are back to setting `EC2_HOST` by hand.
+- **If two instances carry that tag, the deploy refuses rather than guessing.**
+  Picking whichever AWS listed first is how you discover, a week later, that
+  production was never updated. Set `EC2_HOST` to name the one you mean.
+
+`EC2_HOST` still wins when set, so it remains the override for pointing a build
+at a different box.
 
 ---
 
@@ -152,6 +178,6 @@ The Deploy stage fails its health check on purpose, the container is torn down, 
 | `Host key verification failed` | The scripts already pass `StrictHostKeyChecking=no`. If you see this, the SSH credential is wrong or the key was pasted without its header/footer lines. |
 | `Permission denied (publickey)` in Deploy | The `ec2-ssh-key` credential's username must be `ec2-user`. |
 | `NoCredentialsError` from boto3 | `aws-credentials` is missing, or its ID does not match the Jenkinsfile. |
-| `no EC2 host` | `EC2_HOST` is not set as a global environment variable (step 5). |
+| `no EC2 host, and no running instance tagged...` | Nothing is running, or the AWS credentials lack `ec2:DescribeInstances`. Run `infra/provision.py`, or set `EC2_HOST` (step 5). |
 | Build hangs on Setup | The venv is downloading. First run only; a few minutes is normal. |
 | Deploy fails with `connection timed out` | The security group only allows SSH from the IP `provision.py` saw. If your IP changed, re-run `provision.py`. |

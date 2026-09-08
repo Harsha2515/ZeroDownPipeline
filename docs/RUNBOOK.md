@@ -236,4 +236,4 @@ grep 'server 127.0.0.1' /etc/nginx/conf.d/zerodown.conf
 . /opt/zerodown/scripts/lib.sh && active_color
 ```
 
-**The public IP changed after a stop/start.** Re-run `python infra/provision.py` to refresh `outputs.json` and the SSH rule, then update `EC2_HOST` in Jenkins.
+**The public IP changed after a stop/start.** Re-run `python infra/provision.py` to refresh `outputs.json` and the SSH rule. Jenkins needs no update: with no `EC2_HOST` set it discovers the running instance by tag on the next build. If `EC2_HOST` *is* set, it overrides discovery — change it or clear it.

@@ -26,6 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 OUTPUTS = ROOT / "infra" / "outputs.json"
 REMOTE_ROOT = "/opt/zerodown"
 
+# The Name tag provision.py puts on the instance. Discovery keys off this.
+INSTANCE_NAME = "zerodownpipeline-app"
+
 HISTORY_KEY = "deployments/history.json"
 LAST_GOOD_KEY = "deployments/last-good.json"
 MAX_HISTORY_ENTRIES = 200
@@ -74,6 +77,54 @@ def load_env_file(path: Path | None = None) -> dict:
     return values
 
 
+def discover_host(region: str) -> str:
+    """Ask AWS for the public IP of the running instance, by tag.
+
+    This is the last resort, used when nothing else supplied a host - which is
+    the normal case in Jenkins, because infra/outputs.json is gitignored and a
+    build works from a clean checkout.
+
+    The alternative was a hand-copied EC2_HOST in the Jenkins settings, and a
+    hand-copied address is a note that goes stale the moment the instance is
+    replaced. The same reasoning already applies elsewhere here: active_color()
+    reads the nginx config rather than a state file, and rollback.py asks the
+    live service its version rather than believing the ledger. Ask reality.
+
+    Returns "" rather than raising, so the caller can produce one good error
+    message instead of a traceback. A missing permission, absent credentials or
+    no running instance all mean the same thing to the caller: no host.
+    """
+    try:
+        import boto3
+        ec2 = boto3.client("ec2", region_name=region)
+        reservations = ec2.describe_instances(Filters=[
+            {"Name": "tag:Name", "Values": [INSTANCE_NAME]},
+            {"Name": "instance-state-name", "Values": ["running"]},
+        ])["Reservations"]
+    except Exception as exc:  # noqa: BLE001 - any failure here means "no host"
+        log(f"could not ask AWS which instance is running ({exc})")
+        return ""
+
+    found = [
+        (i["InstanceId"], i["PublicIpAddress"])
+        for res in reservations
+        for i in res["Instances"]
+        if i.get("PublicIpAddress")
+    ]
+    if not found:
+        return ""
+    if len(found) > 1:
+        # Deploying to whichever one AWS happened to list first is how you
+        # discover, later, that production was never updated.
+        listed = ", ".join(f"{iid} ({ip})" for iid, ip in found)
+        fail(f"found {len(found)} running instances tagged {INSTANCE_NAME}: "
+             f"{listed}. Set EC2_HOST explicitly to name the one you mean.")
+
+    instance_id, ip = found[0]
+    log(f"discovered {ip} from AWS ({instance_id}, tag Name={INSTANCE_NAME})")
+    return ip
+
+
 def load_config() -> dict:
     """Merge infra/outputs.json, .env and the real environment.
 
@@ -101,19 +152,28 @@ def load_config() -> dict:
     if key_path and not Path(key_path).is_absolute():
         key_path = str(ROOT / key_path)
 
+    region = pick("AWS_REGION", "region", default="ap-south-1")
+
     cfg = {
         "host": pick("EC2_HOST", "public_ip"),
         "user": pick("EC2_USER", default="ec2-user"),
         "key_path": key_path,
-        "region": pick("AWS_REGION", "region", default="ap-south-1"),
+        "region": region,
         "bucket": pick("S3_BUCKET", "s3_bucket"),
         "dockerhub_user": pick("DOCKERHUB_USER"),
         "image_name": pick("DOCKER_IMAGE", default="zerodownpipeline-api"),
         "blue_port": int(pick("APP_PORT_BLUE", default="8000")),
         "green_port": int(pick("APP_PORT_GREEN", default="8001")),
     }
+
+    # Nothing named a host, so ask AWS. EC2_HOST stays ahead of this on purpose:
+    # discovery is the convenience, an explicit setting is still the override.
     if not cfg["host"]:
-        fail("no EC2 host. Run infra/provision.py first, or set EC2_HOST.")
+        cfg["host"] = discover_host(region)
+
+    if not cfg["host"]:
+        fail(f"no EC2 host, and no running instance tagged Name={INSTANCE_NAME} "
+             f"in {region}. Run infra/provision.py first, or set EC2_HOST.")
     return cfg
 
 
