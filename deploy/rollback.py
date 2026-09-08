@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 
@@ -45,6 +46,23 @@ from common import (
     ssh,
     write_last_good,
 )
+
+
+def live_version_of(cfg: dict) -> str:
+    """What the public endpoint actually reports right now.
+
+    Deliberately best-effort: if the service is unreachable this returns "" and
+    the stale-ledger check is skipped, because an unreachable service is exactly
+    when a rollback is most needed.
+    """
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://{cfg['host']}/health", timeout=8) as resp:
+            body = json.loads(resp.read())
+        return body.get("version", "")
+    except Exception as exc:  # noqa: BLE001
+        log(f"could not read the live version ({exc}) - skipping the staleness check")
+        return ""
 
 
 def show_history(cfg: dict, limit: int = 15) -> None:
@@ -94,6 +112,27 @@ def main() -> int:
     if args.list:
         show_history(cfg)
         return 0
+
+    # Before trusting the ledger, check it against reality. deploy.py can leave
+    # last-good.json stale if the traffic switch succeeded but the S3 write did
+    # not (exit code 2). Rolling back on a stale ledger would "restore" a
+    # version OLDER than the one currently serving - the safety mechanism
+    # causing the outage. So compare what is live with what the ledger claims.
+    live_version = live_version_of(cfg)
+    last_good = read_last_good(cfg) or {}
+    recorded = last_good.get("image_tag", "")
+    if live_version and recorded and live_version != recorded:
+        err_msg = "\n".join([
+            f"LEDGER IS STALE: the live service reports '{live_version}' but "
+            f"last-good.json says '{recorded}'.",
+            "Rolling back now could replace the running version with an older one.",
+            f"Reconcile first:  python deploy/deploy.py --tag {live_version}",
+            "Or, if you are certain, name the target explicitly with --tag.",
+        ])
+        if not args.tag:
+            fail(err_msg)
+        log("WARNING: ledger is stale, but --tag was given explicitly - proceeding")
+        log(f"  live={live_version}  ledger={recorded}  rolling back to={args.tag}")
 
     tag = args.tag or previous_good_tag(cfg)
     image = image_ref(cfg, tag)

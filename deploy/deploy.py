@@ -143,9 +143,37 @@ def main() -> int:
         log("[4/4] no previous container to retire (first deploy)")
     mark("old_container_removed_s")
 
-    write_last_good(cfg, args.tag, target, target_port)
+    # Everything below this line is bookkeeping. The deploy is already LIVE:
+    # nginx has switched and the old container is gone. So a failure here must
+    # never be reported as a rollback - it is a stale-ledger problem, and the
+    # difference matters enormously, because rollback.py trusts last-good.json.
+    # Exit code 2 says "deployed, but the record of it is wrong".
+    ledger_error = None
+    for attempt in range(1, 4):
+        try:
+            write_last_good(cfg, args.tag, target, target_port)
+            ledger_error = None
+            break
+        except Exception as exc:  # noqa: BLE001
+            ledger_error = exc
+            log(f"ledger write failed (attempt {attempt}/3): {exc}")
+            if attempt < 3:
+                time.sleep(3)
 
     total = round(time.time() - started, 1)
+    if ledger_error is not None:
+        log("=" * 68)
+        log(f"DEPLOY SUCCEEDED - {args.tag} IS LIVE on {target}:{target_port}")
+        log("BUT the S3 deployment ledger could not be updated:")
+        log(f"  {ledger_error}")
+        log("")
+        log("Nothing was rolled back. The new version is serving traffic.")
+        log("last-good.json is now STALE - do NOT run rollback.py until it is")
+        log("fixed, or it will 'restore' a version older than the live one:")
+        log(f"  python deploy/deploy.py --tag {args.tag}    # re-run to reconcile")
+        log("=" * 68)
+        return 2
+
     append_history(cfg, {
         "image_tag": args.tag,
         "image": image,

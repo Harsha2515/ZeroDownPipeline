@@ -169,7 +169,16 @@ pipeline {
                             """
                         )
 
-                        if (status != 0) {
+                        if (status == 2) {
+                            // deploy.py exit 2: the new version IS live, but the
+                            // S3 ledger write failed. Reporting this as a
+                            // rollback would be a lie, and would send someone to
+                            // rollback.py - which trusts the very file that is
+                            // now stale.
+                            currentBuild.result = 'UNSTABLE'
+                            env.DEPLOY_OUTCOME = 'deployed-ledger-stale'
+                            echo "DEPLOYED, but the S3 deployment ledger is stale. The new version is serving traffic. Do NOT run rollback.py until the ledger is reconciled - re-run this job to fix it."
+                        } else if (status != 0) {
                             if (params.ROLLBACK_DRILL) {
                                 // The drill is supposed to fail the health check.
                                 // A green build here would mean rollback never ran.
