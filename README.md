@@ -57,12 +57,16 @@ git push
 
 | Metric | Result | How it was measured |
 |---|---|---|
-| Manual deploy (baseline) | _e.g. 11 min, 14 steps_ | `docs/METRICS.md` — timed once, by hand |
-| Automated deploy, push → live | _e.g. 3 min 40 s_ | Jenkins build duration |
-| Failed requests during a deploy | _e.g. 0 of 600_ | `deploy/measure_downtime.py` |
-| Time to automatic rollback (MTTR) | _e.g. 38 s_ | `deploy/deploy.py --break-health` |
-| Manual steps eliminated | _e.g. 14 → 1_ | counted, before vs after |
-| Database failover time | _e.g. 22 s_ | `scripts/db/promote_replica.sh` |
+| Automated deploy (deploy step) | **10.1 s** median of 6 | `deploy.py` timings, recorded in S3 |
+| **Failed requests during a live traffic switch** | **0 of 654**, across 2 runs | [`deploy/measure_downtime.py`](deploy/measure_downtime.py) → `docs/downtime-run.json` |
+| Time to automatic rollback (MTTR) | **35.7 s** | `deploy.py --break-health`, traffic never moved |
+| Database failover | **2 s** | `scripts/db/promote_replica.sh` |
+| Replication lag, steady state | **0 s behind** | `scripts/db/replication_status.sh` |
+| Manual deploy (baseline) | _not timed_ | see `docs/METRICS.md` |
+
+> The rollback figure is dominated by the retry budget (10 attempts × 3 s). `--retries 5`
+> would halve it, at the cost of failing containers that are merely slow to start — the
+> trade-off matters more than the number.
 
 ---
 

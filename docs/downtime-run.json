@@ -1,0 +1,38 @@
+{
+  "url": "http://13.201.186.129/health",
+  "ran_at": "2026-09-08T10:42:35+00:00",
+  "duration_seconds": 90,
+  "target_rps": 5.0,
+  "requests_total": 367,
+  "requests_failed": 3,
+  "availability_percent": 99.1826,
+  "longest_outage_seconds": 5.01,
+  "latency_ms": {
+    "p50": 84.7,
+    "p95": 105.8,
+    "p99": 128.9,
+    "max": 1103.9
+  },
+  "served_by_counts": {
+    "green": 60,
+    "blue": 304
+  },
+  "traffic_switch_observed_at_s": 12.2,
+  "switch_window_seconds": 10.0,
+  "failures_during_switch": 0,
+  "failures_unrelated_to_switch": 3,
+  "failures": [
+    {
+      "at_s": 61.4,
+      "error": "URLError"
+    },
+    {
+      "at_s": 67.6,
+      "error": "URLError"
+    },
+    {
+      "at_s": 78.1,
+      "error": "URLError"
+    }
+  ]
+}

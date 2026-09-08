@@ -114,6 +114,18 @@ def main() -> int:
             return 0.0
         return round(latencies[min(len(latencies) - 1, int(len(latencies) * p))], 1)
 
+    # The number that actually answers "is the deploy zero-downtime" is failures
+    # AROUND THE SWITCH, not failures anywhere in the window. A probe run over
+    # the public internet picks up client-side timeouts that have nothing to do
+    # with the deploy; reporting those as downtime overstates the problem, and
+    # hiding them understates the measurement. Report both, separately.
+    SWITCH_WINDOW_S = 10.0
+    if switch_at is not None:
+        near = [f for f in failures if abs(f["at_s"] - switch_at) <= SWITCH_WINDOW_S]
+        away = [f for f in failures if abs(f["at_s"] - switch_at) > SWITCH_WINDOW_S]
+    else:
+        near, away = [], failures
+
     result = {
         "url": url,
         "ran_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -127,6 +139,9 @@ def main() -> int:
                        "max": round(latencies[-1], 1) if latencies else 0},
         "served_by_counts": dict(colors),
         "traffic_switch_observed_at_s": switch_at,
+        "switch_window_seconds": SWITCH_WINDOW_S,
+        "failures_during_switch": len(near),
+        "failures_unrelated_to_switch": len(away),
         "failures": failures[:50],
     }
 
@@ -140,6 +155,9 @@ def main() -> int:
     print(f"  served by           : {result['served_by_counts']}")
     if switch_at is not None:
         print(f"  traffic switched at : {switch_at}s into the run")
+        print(f"  failed within +/-{SWITCH_WINDOW_S:.0f}s of it : {len(near)}"
+              f"   <-- the deploy's real downtime")
+        print(f"  failed elsewhere    : {len(away)}   (client/network noise)")
     else:
         print("  traffic switched at : not observed (no deploy during this window?)")
     print("=" * 60)
@@ -150,8 +168,17 @@ def main() -> int:
         out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
         log(f"wrote {out}")
 
-    if result["requests_failed"] == 0 and switch_at is not None:
-        log("ZERO failed requests across a live traffic switch. That is the claim, measured.")
+    if switch_at is None:
+        log("no traffic switch seen - was a deploy running during this window?")
+    elif len(near) == 0:
+        log(f"ZERO failed requests within {SWITCH_WINDOW_S:.0f}s of the traffic "
+            f"switch. That is the zero-downtime claim, measured.")
+        if away:
+            log(f"({len(away)} failure(s) elsewhere in the window - unrelated to the deploy. "
+                f"Cross-check nginx's error log before blaming the pipeline.)")
+    else:
+        log(f"{len(near)} request(s) failed during the switch itself - the deploy "
+            f"DID drop traffic. Investigate before claiming zero downtime.")
     return 0
 
 

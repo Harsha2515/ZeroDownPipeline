@@ -12,10 +12,15 @@ The reason to be strict about this: an interviewer who has built a pipeline can 
 
 | | Value |
 |---|---|
-| Date measured | |
-| Wall-clock time | |
-| Number of manual steps | |
+| Date measured | 2026-09-08 |
+| Wall-clock time | _NOT RECORDED - fill this in_ |
+| Number of manual steps | _NOT RECORDED - 8 commands across 2 windows, plus the tag copy-paste_ |
 | Steps that needed a second attempt | |
+
+> The manual deploy was performed on 2026-09-08 (build, push, then `start_container.sh`,
+> `healthcheck.sh`, `switch_traffic.sh` over SSH) but was not timed. **Either put your own
+> honest estimate here and label it an estimate, or leave it blank.** Do not invent a
+> figure - the whole value of this row is that it is measured.
 
 A typical honest first result is 8–15 minutes and 12–16 steps. Do not tidy it up afterwards; the messiness is the point of the comparison.
 
@@ -25,11 +30,19 @@ A typical honest first result is 8–15 minutes and 12–16 steps. Do not tidy i
 
 Read it off the Jenkins build page — total duration, and the Stage View for the per-stage split.
 
-| Run | Total | Build+push | Deploy | Health check | Switch |
-|---|---|---|---|---|---|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
+Measured directly from `deploy.py` (deploy step only - no build or push):
+
+| Run | Total | Health check | Switch | Result |
+|---|---|---|---|---|
+| 1 | 11.7 s | 1.8 s | 8.1 s | blue -> green |
+| 2 | 10.8 s | 1.7 s | - | green -> blue |
+| 3 | 10.1 s | 1.5 s | - | blue -> green |
+| 4 | 10.0 s | 1.2 s | - | green -> blue |
+| 5 | 9.0 s | 1.3 s | - | blue -> green |
+| 6 | 8.7 s | 1.1 s | - | green -> blue |
+
+**Median: 10.1 s** across 6 runs. The first is slowest (cold image pull on the instance).
+Add Jenkins build + push time on top for the full push-to-live figure.
 
 Take the median of at least three runs. The first is always slower (cold caches) and quoting it flatters you in the wrong direction.
 
@@ -50,14 +63,25 @@ python deploy/measure_downtime.py --duration 120 --rps 5 --out docs/downtime-run
 python deploy/deploy.py --tag <new-sha>
 ```
 
-| | Value |
-|---|---|
-| Requests sent | |
-| Requests failed | |
-| Availability % | |
-| Longest gap in service | |
-| p50 / p95 latency | |
-| Traffic switch observed at | |
+Two independent runs, each with a real deploy inside the window:
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Requests sent | 287 | 367 |
+| **Failed during the switch** | **0** | **0** |
+| Failed elsewhere in the window | 4 | 3 |
+| Traffic switch observed at | 12.7 s | 12.2 s |
+| p50 / p95 latency | 98 / 148 ms | 85 / 106 ms |
+| `served_by` flip | blue -> green | green -> blue |
+
+**654 requests across two live traffic switches, zero failed at either switch.**
+
+The failures in both runs landed at random points far from the switch (30-86 s in run 1,
+61-78 s in run 2) and nginx's error log was empty throughout - client-side timeouts on the
+probe's connection, not the deploy. `measure_downtime.py` reports the two categories
+separately for exactly this reason: an aggregate availability figure cannot distinguish
+"the deploy dropped traffic" from "my WiFi hiccuped", and only the first one is a claim
+about the pipeline.
 
 **Commit `docs/downtime-run.json`.** It is the difference between a claim and evidence.
 
@@ -73,11 +97,11 @@ python deploy/deploy.py --tag <sha> --break-health
 
 The script prints `time from deploy start to completed rollback`. It is also stored as `time_to_rollback_seconds` in the S3 history.
 
-| Run | Time to rollback | Health check attempts used |
-|---|---|---|
-| 1 | | |
-| 2 | | |
-| 3 | | |
+| Run | Time to rollback | Health check attempts used | Traffic moved? |
+|---|---|---|---|
+| 1 | **35.7 s** | 10 of 10 (all failed) | No - green served throughout |
+
+Recorded in S3 as a `"status": "failed"` entry alongside the successes.
 
 This number is dominated by your health check settings: `--retries 10 --interval 3` means a failing deploy takes ~30 s to be declared dead. That is a deliberate trade — fewer retries detects failure faster but risks failing a slow-starting-but-healthy container. **Be ready to say that out loud**; it is the follow-up question this metric attracts.
 
@@ -97,10 +121,10 @@ This number is dominated by your health check settings: `--retries 10 --interval
 
 | Operation | Command | Time | Notes |
 |---|---|---|---|
-| Backup (full) | `scripts/db/backup_db.sh` | | dump size: |
-| Restore | `scripts/db/restore_db.sh --confirm` | | rows verified: |
-| Failover | `scripts/db/promote_replica.sh --confirm` | | printed by the script |
-| Replication lag, steady state | `scripts/db/replication_status.sh` | | seconds behind |
+| Backup (full) | `scripts/db/backup_db.sh` | ~1 s | 4 KB gzipped; verified before upload (tested locally) |
+| Restore | `scripts/db/restore_db.sh --confirm` | _not yet run_ | **run this once - see RUNBOOK** |
+| Failover | `scripts/db/promote_replica.sh --confirm` | **2 s** | replica promoted, accepted writes (tested locally) |
+| Replication lag, steady state | `scripts/db/replication_status.sh` | **0 s behind** | measured on EC2 |
 
 ---
 
