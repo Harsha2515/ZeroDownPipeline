@@ -29,10 +29,10 @@ pipeline {
     }
 
     environment {
-        DOCKERHUB_USER = 'REPLACE_WITH_YOUR_DOCKERHUB_USER'
+        DOCKERHUB_USER = 'harsha2515'
         DOCKER_IMAGE   = 'zerodownpipeline-api'
         AWS_REGION     = 'ap-south-1'
-        S3_BUCKET      = 'REPLACE_WITH_YOUR_BUCKET'
+        S3_BUCKET      = 'zerodownpipeline-data-harsha2515'
         EC2_USER       = 'ec2-user'
         VENV           = "${WORKSPACE}/.venv"
     }

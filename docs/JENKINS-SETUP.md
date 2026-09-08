@@ -8,33 +8,44 @@ Jenkins runs **on your laptop, in Docker** — not on the EC2 instance. The t3.m
 
 The controller needs the Docker CLI (to build images), Python 3, and SSH (to reach EC2). The stock image has none of those, so build a small one.
 
-`jenkins/Dockerfile`:
+The image definition lives in [`jenkins/Dockerfile`](../jenkins/Dockerfile) — it adds the
+Docker CLI, Python, SSH, git and shellcheck to the stock Jenkins image. Only the Docker
+*client* is installed; the daemon comes from your machine via the mounted socket.
 
-```dockerfile
-FROM jenkins/jenkins:lts-jdk17
-USER root
-RUN apt-get update && apt-get install -y \
-        docker.io python3 python3-venv python3-pip openssh-client shellcheck git \
- && rm -rf /var/lib/apt/lists/*
-USER jenkins
-```
-
-```bash
+```powershell
+cd "C:\Z - Projects\ZeroDownPipeline"
 docker build -t jenkins-zdp jenkins/
 docker volume create jenkins_home
 
-docker run -d --name jenkins \
-  -p 8080:8080 -p 50000:50000 \
-  -v jenkins_home:/var/jenkins_home \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --group-add "$(stat -c '%g' /var/run/docker.sock)" \
-  --restart unless-stopped \
+docker run -d --name jenkins `
+  -p 8080:8080 -p 50000:50000 `
+  -v jenkins_home:/var/jenkins_home `
+  -v //var/run/docker.sock:/var/run/docker.sock `
+  --group-add 0 `
+  --restart unless-stopped `
   jenkins-zdp
 ```
 
-Mounting the host's Docker socket lets Jenkins build images using your machine's Docker daemon instead of running a second one inside itself.
+Two Windows-specific details, both of which will bite you otherwise:
 
-> **On Docker Desktop for Windows**, drop the `--group-add` line and mount `//var/run/docker.sock:/var/run/docker.sock` (note the leading double slash).
+- **`//var/run/docker.sock`** with a leading double slash. A single slash gets rewritten by
+  MSYS/Git Bash path translation into a Windows path that does not exist.
+- **`--group-add 0`**. On Docker Desktop the socket inside the container is `root:root`
+  mode 660, while Jenkins runs as uid 1000. Without this you get
+  `permission denied while trying to connect to the docker API`. Linux guides say to use
+  the `docker` group's gid — there is no such group here, so group 0 is the equivalent.
+
+> Mounting the Docker socket gives the Jenkins container full control of your machine's
+> Docker daemon. That is inherent to socket-mounted builds, not something `--group-add`
+> introduces — but it is worth knowing that this container is privileged in practice, and
+> is a reason not to expose it beyond localhost.
+
+Verify it came up correctly before going further:
+
+```powershell
+docker exec jenkins docker version --format "server {{.Server.Version}}"
+docker exec jenkins bash -c "python3 --version; git --version"
+```
 
 Unlock it:
 
