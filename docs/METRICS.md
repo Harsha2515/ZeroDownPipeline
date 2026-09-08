@@ -42,7 +42,17 @@ Measured directly from `deploy.py` (deploy step only - no build or push):
 | 6 | 8.7 s | 1.1 s | - | green -> blue |
 
 **Median: 10.1 s** across 6 runs. The first is slowest (cold image pull on the instance).
-Add Jenkins build + push time on top for the full push-to-live figure.
+
+### Full pipeline, git push to live traffic
+
+Jenkins build #1, all nine stages (checkout, venv, lint, pytest, shellcheck, docker build,
+push to Docker Hub, deploy, smoke test):
+
+| Run | Total | Deploy stage | Result |
+|---|---|---|---|
+| #1 | **3 min 11 s** (190.9 s) | 16.5 s | SUCCESS |
+
+Triggered by `git push`, with no manual step between the push and live traffic.
 
 Take the median of at least three runs. The first is always slower (cold caches) and quoting it flatters you in the wrong direction.
 

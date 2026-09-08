@@ -57,7 +57,8 @@ git push
 
 | Metric | Result | How it was measured |
 |---|---|---|
-| Automated deploy (deploy step) | **10.1 s** median of 6 | `deploy.py` timings, recorded in S3 |
+| Full pipeline, git push → live | **3 min 11 s** | Jenkins build duration, 9 stages |
+| Deploy step alone | **10.1 s** median of 6 | `deploy.py` timings, recorded in S3 |
 | **Failed requests during a live traffic switch** | **0 of 654**, across 2 runs | [`deploy/measure_downtime.py`](deploy/measure_downtime.py) → `docs/downtime-run.json` |
 | Time to automatic rollback (MTTR) | **35.7 s** | `deploy.py --break-health`, traffic never moved |
 | Database failover | **2 s** | `scripts/db/promote_replica.sh` |

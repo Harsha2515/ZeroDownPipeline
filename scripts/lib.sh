@@ -24,9 +24,9 @@ load_env() {
   local line key value
   while IFS= read -r line || [[ -n "$line" ]]; do
     # A .env authored on Windows arrives with CRLF endings. Without this, every
-    # value silently carries a trailing  - passwords stop matching, ports
+    # value silently carries a trailing CR - passwords stop matching, ports
     # stop parsing, and the errors point everywhere except the real cause.
-    line="${line%$''}"
+    line="${line%$'\r'}"
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" != *=* ]] && continue
     key="${line%%=*}"
